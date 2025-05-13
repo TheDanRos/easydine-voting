@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Easydine Rezept-Voting</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 700px;
+      margin: auto;
+      padding: 2rem;
+      background: #f9f9f9;
+    }
+    h1 {
+      text-align: center;
+    }
+    .rezept-block {
+      margin-bottom: 1.5rem;
+    }
+    label {
+      font-weight: bold;
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+    select {
+      width: 100%;
+      padding: 0.5rem;
+    }
+    button {
+      margin-top: 2rem;
+      padding: 1rem;
+      width: 100%;
+      background: #007aff;
+      color: white;
+      font-size: 1rem;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Wöchentliche Rezeptabstimmung</h1>
+  <form id="voting-form" method="POST" action="https://hook.eu2.make.com/julgccpmfb34d59narq1qgn4itenrd7m">
+    <input type="hidden" name="household_id" id="household-id" />
+    <div id="rezepte"></div>
+    <button type="submit">Abstimmen</button>
+  </form>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const householdId = urlParams.get('household');
+    document.getElementById('household-id').value = householdId;
+
+    async function loadRecipes() {
+      try {
+        const response = await fetch(`https://hook.eu2.make.com/YOUR-RECIPE-ENDPOINT?household_id=${householdId}`);
+        const rezepte = await response.json();
+
+        const container = document.getElementById('rezepte');
+
+        rezepte.forEach((rezept, index) => {
+          const div = document.createElement('div');
+          div.className = 'rezept-block';
+
+          const label = document.createElement('label');
+          label.htmlFor = `vote_${index}`;
+          label.textContent = `${index + 1}. ${rezept.name}`;
+
+          const select = document.createElement('select');
+          select.name = `vote_${index}`;
+          select.id = `vote_${index}`;
+
+          ['Ja', 'Nein', 'Vielleicht'].forEach(optionText => {
+            const option = document.createElement('option');
+            option.value = optionText;
+            option.text = optionText;
+            select.appendChild(option);
+          });
+
+          // Optional hidden field to map recipe ID
+          const hidden = document.createElement('input');
+          hidden.type = 'hidden';
+          hidden.name = `recipe_id_${index}`;
+          hidden.value = rezept.id;
+
+          div.appendChild(label);
+          div.appendChild(select);
+          div.appendChild(hidden);
+          container.appendChild(div);
+        });
+
+      } catch (error) {
+        document.getElementById('rezepte').innerHTML = '<p>Fehler beim Laden der Rezepte.</p>';
+        console.error(error);
+      }
+    }
+
+    loadRecipes();
+  </script>
+</body>
+</html>
