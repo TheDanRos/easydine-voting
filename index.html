@@ -49,7 +49,7 @@
 
   <script>
     const urlParams = new URLSearchParams(window.location.search);
-    const householdId = urlParams.get('household');
+    const householdId = urlParams.get('household_id');
     document.getElementById('household-id').value = householdId;
 
     async function loadRecipes() {
