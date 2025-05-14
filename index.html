@@ -54,7 +54,7 @@
 
     async function loadRecipes() {
       try {
-        const response = await fetch(`https://hook.eu2.make.com/YOUR-RECIPE-ENDPOINT?household_id=${householdId}`);
+        const response = await fetch(`https://hook.eu2.make.com/julgccpmfb34d59narq1qgn4itenrd7m_recipes?household_id=${householdId}`);
         const rezepte = await response.json();
 
         const container = document.getElementById('rezepte');
