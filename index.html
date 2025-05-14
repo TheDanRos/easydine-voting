@@ -55,68 +55,50 @@
     <button type="submit">Abstimmen</button>
   </form>
 
-  <script>
-    // Query-Parameter auslesen
-    const urlParams = new URLSearchParams(window.location.search);
-    const householdId = urlParams.get('household_id');
-    console.log('Haushalt-ID:', householdId);
-    document.getElementById('household-id').value = householdId;
+ <script>
+  // … vorher bereits ausgelesen …
+  async function loadRecipes() {
+    try {
+      const response = await fetch(`…?household_id=${encodeURIComponent(householdId)}`);
+      const rezepte = await response.json();
+      console.log('RAW Rezepte-Response:', rezepte);
 
-    async function loadRecipes() {
-      try {
-        const response = await fetch(
-          `https://hook.eu2.make.com/yd1vwzpsofpkgvvw6mloadbiojmljpmd?household_id=${encodeURIComponent(householdId)}`
-        );
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const rezepte = await response.json();
+      const container = document.getElementById('rezepte');
+      container.innerHTML = '';
+      rezepte.forEach((rezept, index) => {
+        const div = document.createElement('div');
+        div.className = 'rezept-block';
 
-        const container = document.getElementById('rezepte');
-        container.innerHTML = '';
+        const label = document.createElement('label');
+        label.htmlFor = `vote_${index}`;
+        // Hier an die tatsächliche Struktur anpassen:
+        label.textContent = `${index + 1}. ${rezept.fields.Name}`;
 
-        if (!Array.isArray(rezepte) || rezepte.length === 0) {
-          container.innerHTML = '<p>Keine Rezepte gefunden.</p>';
-          return;
-        }
-
-        rezepte.forEach((rezept, index) => {
-          const div = document.createElement('div');
-          div.className = 'rezept-block';
-
-          const label = document.createElement('label');
-          label.htmlFor = `vote_${index}`;
-          label.textContent = `${index + 1}. ${rezept.name}`;
-
-          const select = document.createElement('select');
-          select.name = `vote_${index}`;
-          select.id = `vote_${index}`;
-
-          ['Ja', 'Nein', 'Vielleicht'].forEach(optionText => {
-            const option = document.createElement('option');
-            option.value = optionText;
-            option.text = optionText;
-            select.appendChild(option);
-          });
-
-          // Hidden field for recipe ID
-          const hidden = document.createElement('input');
-          hidden.type = 'hidden';
-          hidden.name = `recipe_id_${index}`;
-          hidden.value = rezept.id;
-
-          div.appendChild(label);
-          div.appendChild(select);
-          div.appendChild(hidden);
-          container.appendChild(div);
+        const select = document.createElement('select');
+        select.name = `vote_${index}`;
+        select.id = `vote_${index}`;
+        ['Ja','Nein','Vielleicht'].forEach(opt => {
+          const o = document.createElement('option');
+          o.value = opt; o.text = opt;
+          select.appendChild(o);
         });
 
-      } catch (error) {
-        const container = document.getElementById('rezepte');
-        container.innerHTML = '<p>Fehler beim Laden der Rezepte.</p>';
-        console.error('Fetch-Fehler:', error);
-      }
-    }
+        const hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = `recipe_id_${index}`;
+        hidden.value = rezept.id;
 
-    loadRecipes();
-  </script>
+        div.appendChild(label);
+        div.appendChild(select);
+        div.appendChild(hidden);
+        container.appendChild(div);
+      });
+    } catch (error) {
+      document.getElementById('rezepte').innerHTML = '<p>Fehler beim Laden der Rezepte.</p>';
+      console.error('Fetch-Fehler:', error);
+    }
+  }
+  loadRecipes();
+</script>
 </body>
 </html>
