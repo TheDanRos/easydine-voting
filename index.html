@@ -91,10 +91,10 @@
           const div = document.createElement('div');
           div.className = 'rezept-block';
 
-          // A) Name aus rezept.fields.Name
-          const name = rezept.fields && rezept.fields.Name
-            ? rezept.fields.Name
-            : rezept.name || 'Unbekannt';
+          // Name bestimmen: je nach JSON-Struktur
+          const name = rezept.fields?.Name 
+                       ?? rezept.name 
+                       ?? 'Unbekannt';
 
           const label = document.createElement('label');
           label.htmlFor = `vote_${index}`;
@@ -110,7 +110,7 @@
             select.appendChild(option);
           });
 
-          // Hidden for recipe ID
+          // Hidden-Feld für recipe ID
           const hidden = document.createElement('input');
           hidden.type = 'hidden';
           hidden.name = `recipe_id_${index}`;
@@ -128,6 +128,7 @@
       }
     }
 
+    // Formular laden
     loadRecipes();
   </script>
 </body>
