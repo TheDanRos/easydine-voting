@@ -5,91 +5,99 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Easydine Voting</title>
   <style>
-    body { font-family: sans-serif; max-width:700px; margin:auto; padding:2rem; background:#f9f9f9 }
+    body { font-family:sans-serif; max-width:700px; margin:auto; padding:2rem; background:#f9f9f9 }
     .block { margin-bottom:1.5rem; padding:1rem; background:#fff; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.1) }
     button { padding:1rem; width:100%; background:#007aff; color:#fff; border:none; border-radius:4px; cursor:pointer }
-    button:disabled { background:#999; }
+    button:disabled { background:#999 }
   </style>
 </head>
 <body>
   <h1>Wöchentliche Rezept-Abstimmung</h1>
   <form id="voting-form">
+    <!-- Hidden: Haushalt und Voting-Record -->
     <input type="hidden" id="household-id" />
+    <input type="hidden" id="voting-record-id" />
+
+    <!-- Anzahl der Gerichte -->
+    <div class="block">
+      <label for="count">Wie viele Gerichte sollen geplant werden?</label>
+      <select id="count">
+        <!-- Optionen 1 bis 10 -->
+        ${Array.from({length:10},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('')}
+      </select>
+    </div>
+
+    <!-- Rezepte-Voting -->
     <div id="rezepte"><p>Lade Rezepte…</p></div>
-    <button type="submit">Abstimmen</button>
+
+    <button type="submit">Abstimmen & Speichern</button>
   </form>
 
   <script>
-    // === KONFIG: nur hier deine Worker-URL eintragen ===
-    const WORKER = 'https://easydine-voting.daniel-rossmann.workers.dev';
-    // ====================================================
+    document.addEventListener('DOMContentLoaded', () => {
+      const WORKER = 'https://easydine-voting.dein-subdomain.workers.dev';
 
-    console.log('Script startet');
-    const params = new URLSearchParams(window.location.search);
-    const hh = params.get('household_id') || '';
-    document.getElementById('household-id').value = hh;
-    let rezepte = [];
+      const params = new URLSearchParams(window.location.search);
+      const hh = params.get('household_id') || '';
+      document.getElementById('household-id').value = hh;
 
-    async function loadRecipes() {
-      console.log('loadRecipes() startet, household_id =', hh);
-      try {
-        const res = await fetch(`${WORKER}?household_id=${encodeURIComponent(hh)}`);
-        rezepte = await res.json();
-        console.log('Rezepte geladen:', rezepte);
+      let votingRecordId = '';
+      let rezepte = [];
+
+      // 1) Rezepte + Voting-RecordID laden
+      async function loadRecipes() {
+        const res = await fetch(\`\${WORKER}?household_id=\${encodeURIComponent(hh)}\`);
+        const data = await res.json();
+        // erwartet: { voting_record_id:string, recipes: Array<{id,name}> }
+        votingRecordId = data.voting_record_id;
+        document.getElementById('voting-record-id').value = votingRecordId;
+
+        rezepte = data.recipes;
         const cont = document.getElementById('rezepte');
         cont.innerHTML = '';
         rezepte.forEach((r,i) => {
           const d = document.createElement('div');
           d.className = 'block';
-          d.innerHTML = `
-            <label for="vote_${i}">${i+1}. ${r.name}</label>
-          <select id="vote_${i}">
-           <option value="1">★☆☆☆☆ (1)</option>
-           <option value="2">★★☆☆☆ (2)</option>
-           <option value="3">★★★☆☆ (3)</option>
-           <option value="4">★★★★☆ (4)</option>
-           <option value="5">★★★★★ (5)</option>
-           </select>
-          `;
+          d.innerHTML = \`
+            <label for="vote_\${i}">\${i+1}. \${r.name}</label>
+            <select id="vote_\${i}">
+              <option value="1">★☆☆☆☆ (1)</option>
+              <option value="2">★★☆☆☆ (2)</option>
+              <option value="3">★★★☆☆ (3)</option>
+              <option value="4">★★★★☆ (4)</option>
+              <option value="5">★★★★★ (5)</option>
+            </select>
+          \`;
           cont.appendChild(d);
         });
-      } catch(err) {
-        console.error('Fehler beim Laden:', err);
-        document.getElementById('rezepte').innerHTML = '<p style="color:red">Fehler beim Laden der Rezepte.</p>';
       }
-    }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      console.log('DOM fertig geladen');
-      const form = document.getElementById('voting-form');
-      console.log('Form gefunden:', form);
-      form.addEventListener('submit', async e => {
+      // 2) Submit-Handler
+      document.getElementById('voting-form').addEventListener('submit', async e => {
         e.preventDefault();
-        console.log('Submit-Handler ausgelöst');
-        const btn = form.querySelector('button[type="submit"]');
-        btn.disabled = true;
-
+        const count = Number(document.getElementById('count').value);
         const votes = rezepte.map((r,i) => ({
           recipe_id: r.id,
-          vote: document.getElementById(`vote_${i}`).value
+          vote: Number(document.getElementById(\`vote_\${i}\`).value)
         }));
-        console.log('Votes-Array:', votes);
 
-        try {
-          const response = await fetch(WORKER, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ household_id: hh, votes })
-          });
-          const json = await response.json();
-          console.log('Server-Antwort:', json);
-          if (json.success) alert('Danke fürs Voting!');
-          else alert('Fehler beim Speichern: ' + (json.error||'unbekannt'));
-        } catch(err) {
-          console.error('Netzwerk-Fehler:', err);
-          alert('Netzwerk-Fehler beim Speichern.');
-        } finally {
-          btn.disabled = false;
+        const payload = {
+          household_id: hh,
+          voting_record_id: votingRecordId,
+          count,
+          votes
+        };
+
+        const resp = await fetch(WORKER, {
+          method: 'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const json = await resp.json();
+        if (json.success) {
+          alert('Abstimmung und Anzahl gespeichert!');
+        } else {
+          alert('Fehler: '+(json.error||'unbekannt'));
         }
       });
 
