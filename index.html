@@ -3,129 +3,86 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Easydine Rezept-Voting</title>
+  <title>Easydine Voting</title>
   <style>
-    body {
-      font-family: sans-serif;
-      max-width: 700px;
-      margin: auto;
-      padding: 2rem;
-      background: #f9f9f9;
-    }
-    h1 {
-      text-align: center;
-      margin-bottom: 1.5rem;
-    }
-    .block {
-      margin-bottom: 1.5rem;
-      padding: 1rem;
-      background: #fff;
-      border-radius: 4px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    label {
-      font-weight: bold;
-      display: block;
-      margin-bottom: 0.5rem;
-    }
-    select {
-      width: 100%;
-      padding: 0.5rem;
-      margin-bottom: 0.5rem;
-    }
-    button {
-      margin-top: 1rem;
-      padding: 1rem;
-      width: 100%;
-      background: #007aff;
-      color: white;
-      font-size: 1rem;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    button:disabled {
-      background: #999;
-      cursor: default;
-    }
+    body { font-family: sans-serif; max-width:700px; margin:auto; padding:2rem; background:#f9f9f9 }
+    .block { margin-bottom:1.5rem; padding:1rem; background:#fff; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.1) }
+    button { padding:1rem; width:100%; background:#007aff; color:#fff; border:none; border-radius:4px; cursor:pointer }
+    button:disabled { background:#999; }
   </style>
 </head>
 <body>
   <h1>Wöchentliche Rezept-Abstimmung</h1>
   <form id="voting-form">
-    <!-- wird im Script gefüllt -->
     <input type="hidden" id="household-id" />
-    <div id="rezepte">
-      <p>Lade Rezepte… bitte warten.</p>
-    </div>
+    <div id="rezepte"><p>Lade Rezepte…</p></div>
     <button type="submit">Abstimmen</button>
   </form>
 
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      console.log('Script gestartet');
-      const WORKER = 'https://easydine-voting.daniel-rossmann.workers.dev';
-      const params = new URLSearchParams(window.location.search);
-      const hh = params.get('household_id') || '';
-      document.getElementById('household-id').value = hh;
-      let rezepte = [];
+    // === KONFIG: nur hier deine Worker-URL eintragen ===
+    const WORKER = 'https://easydine-voting.daniel-rossmann.workers.dev';
+    // ====================================================
 
-      // Rezepte laden
-      async function loadRecipes() {
-        try {
-          const res = await fetch(\`\${WORKER}?household_id=\${encodeURIComponent(hh)}\`);
-          rezepte = await res.json();
-          const cont = document.getElementById('rezepte');
-          cont.innerHTML = '';
-          rezepte.forEach((r, i) => {
-            const block = document.createElement('div');
-            block.className = 'block';
-            block.innerHTML = \`
-              <label for="vote_\${i}">\${i+1}. \${r.name}</label>
-              <select id="vote_\${i}">
-                <option>Ja</option>
-                <option>Nein</option>
-                <option>Vielleicht</option>
-              </select>
-            \`;
-            cont.appendChild(block);
-          });
-        } catch (err) {
-          console.error('Fehler beim Laden der Rezepte:', err);
-          document.getElementById('rezepte').innerHTML =
-            '<p style="color:red;">Fehler beim Laden der Rezepte.</p>';
-        }
+    console.log('Script startet');
+    const params = new URLSearchParams(window.location.search);
+    const hh = params.get('household_id') || '';
+    document.getElementById('household-id').value = hh;
+    let rezepte = [];
+
+    async function loadRecipes() {
+      console.log('loadRecipes() startet, household_id =', hh);
+      try {
+        const res = await fetch(`${WORKER}?household_id=${encodeURIComponent(hh)}`);
+        rezepte = await res.json();
+        console.log('Rezepte geladen:', rezepte);
+        const cont = document.getElementById('rezepte');
+        cont.innerHTML = '';
+        rezepte.forEach((r,i) => {
+          const d = document.createElement('div');
+          d.className = 'block';
+          d.innerHTML = `
+            <label for="vote_${i}">${i+1}. ${r.name}</label>
+            <select id="vote_${i}">
+              <option>Ja</option><option>Nein</option><option>Vielleicht</option>
+            </select>
+          `;
+          cont.appendChild(d);
+        });
+      } catch(err) {
+        console.error('Fehler beim Laden:', err);
+        document.getElementById('rezepte').innerHTML = '<p style="color:red">Fehler beim Laden der Rezepte.</p>';
       }
+    }
 
-      // Submit-Handler
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('DOM fertig geladen');
       const form = document.getElementById('voting-form');
+      console.log('Form gefunden:', form);
       form.addEventListener('submit', async e => {
         e.preventDefault();
         console.log('Submit-Handler ausgelöst');
-        // Button deaktivieren, damit nicht mehrfach abgesendet wird
         const btn = form.querySelector('button[type="submit"]');
         btn.disabled = true;
-        const votes = rezepte.map((r, i) => ({
+
+        const votes = rezepte.map((r,i) => ({
           recipe_id: r.id,
-          vote: document.getElementById(\`vote_\${i}\`).value
+          vote: document.getElementById(`vote_${i}`).value
         }));
-        console.log('Votes:', votes);
+        console.log('Votes-Array:', votes);
+
         try {
-          const resp = await fetch(WORKER, {
+          const response = await fetch(WORKER, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ household_id: hh, votes })
           });
-          const json = await resp.json();
-          console.log('Response JSON:', json);
-          if (json.success) {
-            alert('Danke fürs Voting!');
-            form.reset();
-          } else {
-            alert('Fehler beim Speichern: ' + (json.error || 'Unbekannt'));
-          }
-        } catch (err) {
-          console.error('Netzwerk-Fehler beim Voting:', err);
+          const json = await response.json();
+          console.log('Server-Antwort:', json);
+          if (json.success) alert('Danke fürs Voting!');
+          else alert('Fehler beim Speichern: ' + (json.error||'unbekannt'));
+        } catch(err) {
+          console.error('Netzwerk-Fehler:', err);
           alert('Netzwerk-Fehler beim Speichern.');
         } finally {
           btn.disabled = false;
