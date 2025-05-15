@@ -1,97 +1,129 @@
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const WORKER = 'https://easydine-voting.daniel-rossmann.workers.dev';
-  const params = new URLSearchParams(location.search);
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Easydine Voting</title>
+  <style>
+    body { font-family: sans-serif; max-width:700px; margin:auto; padding:2rem; background:#f9f9f9; }
+    h1 { text-align:center; margin-bottom:1.5rem; }
+    .block { background:#fff; padding:1rem; margin-bottom:1.5rem; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+    label { display:block; font-weight:bold; margin-bottom:0.5rem; }
+    select, button { width:100%; padding:0.5rem; font-size:1rem; }
+    button { margin-top:1rem; background:#007aff; color:#fff; border:none; border-radius:4px; cursor:pointer; }
+    button:disabled { background:#999; cursor:default; }
+    .error { color:red; }
+  </style>
+</head>
+<body>
+  <h1>Wöchentliche Rezept-Abstimmung</h1>
 
-  // Hol beide Parameter aus der URL:
-  const householdId = params.get('household');
-  const votingId    = params.get('voting_id');
+  <!-- 1) Anzahl Gerichte -->
+  <div class="block">
+    <label for="count">Wie viele Gerichte sollen geplant werden?</label>
+    <select id="count"></select>
+  </div>
 
-  let rezepte = [];
-  const rezContainer = document.getElementById('rezepte');
-  const btn          = document.getElementById('submit-btn');
-  const countSelect  = document.getElementById('count');
+  <!-- 2) Rezepte laden -->
+  <div id="rezepte">
+    <p>Lade Rezepte… bitte warten.</p>
+  </div>
 
-  // 1️⃣ Count-Select füllen:
-  for (let i = 1; i <= 10; i++) {
-    const o = document.createElement('option');
-    o.value = i; o.textContent = i;
-    countSelect.appendChild(o);
-  }
+  <!-- 3) Absenden -->
+  <button id="submit-btn" disabled>Abstimmen &amp; Speichern</button>
 
-  // 2️⃣ Rezepte laden – wir schicken jetzt both Params:
-  async function loadRecipes() {
-    try {
-      const res = await fetch(
-        WORKER 
-        + '?household_id=' + encodeURIComponent(householdId)
-        + '&voting_id='    + encodeURIComponent(votingId)
-      );
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      // der Worker liefert jetzt { voting_record_id, recipes: [...] }
-      const { voting_record_id, recipes } = await res.json();
-      // Merke dir die ID für POST
-      window.__VOTING_RECORD_ID = voting_record_id;
-
-      // Rezepte in DOM bauen
-      rezContainer.innerHTML = '';
-      rezepte = recipes;
-      recipes.forEach((r,i) => {
-        const d = document.createElement('div');
-        d.className = 'block';
-        d.innerHTML = 
-          '<label for="vote_' + i + '">' + (i+1) + '. ' + r.name + '</label>' +
-          '<select id="vote_' + i + '">' +
-            '<option value="1">★☆☆☆☆ (1)</option>' +
-            '<option value="2">★★☆☆☆ (2)</option>' +
-            '<option value="3">★★★☆☆ (3)</option>' +
-            '<option value="4">★★★★☆ (4)</option>' +
-            '<option value="5">★★★★★ (5)</option>' +
-          '</select>';
-        rezContainer.appendChild(d);
-      });
-
-      btn.disabled = false;
-    } catch(err) {
-      console.error('loadRecipes error',err);
-      rezContainer.innerHTML = '<p class="error">Fehler beim Laden der Rezepte.</p>';
+  <!-- 4) Script unbedingt am Ende, damit alle IDs schon im DOM sind -->
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const WORKER = 'https://easydine-voting.daniel-rossmann.workers.dev';
+    const params = new URLSearchParams(location.search);
+    const householdId = params.get('household');
+    const votingId    = params.get('voting_id');
+    if (!householdId || !votingId) {
+      document.getElementById('rezepte').innerHTML = 
+        '<p class="error">Fehler: household_id oder voting_id fehlt in der URL.</p>';
+      return;
     }
-  }
 
-  // 3️⃣ Submit: wir senden jetzt auch voting_id mit
-  btn.addEventListener('click', async () => {
-    btn.disabled = true;
-    const count = Number(countSelect.value);
-    const votes = rezepte.map((r,i) => ({
-      recipe_id: r.id,
-      vote:      Number(document.getElementById('vote_' + i).value)
-    }));
+    const rezContainer = document.getElementById('rezepte');
+    const btn          = document.getElementById('submit-btn');
+    const countSelect  = document.getElementById('count');
+    let rezepte = [];
 
-    try {
-      const resp = await fetch(WORKER, {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify({
-          household_id:     householdId,
-          voting_record_id: window.__VOTING_RECORD_ID,
-          count,
-          votes
-        })
-      });
-      const j = await resp.json();
-      if (j.success) {
-        alert('Danke fürs Voting!');
-      } else {
-        alert('Fehler: ' + (j.error||'unbekannt'));
+    // Fill count dropdown
+    for (let i = 1; i <= 10; i++) {
+      const o = document.createElement('option');
+      o.value = i; o.textContent = i;
+      countSelect.appendChild(o);
+    }
+
+    // Load recipes from worker
+    async function loadRecipes() {
+      try {
+        const res = await fetch(
+          `${WORKER}?household_id=${encodeURIComponent(householdId)}&voting_id=${encodeURIComponent(votingId)}`
+        );
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const { voting_record_id, recipes } = await res.json();
+        window.__VOTING_RECORD_ID = voting_record_id;
+        rezete = recipes; // record recipes for submit
+        rezContainer.innerHTML = '';
+        recipes.forEach((r,i) => {
+          const d = document.createElement('div');
+          d.className = 'block';
+          d.innerHTML =
+            `<label for="vote_${i}">${i+1}. ${r.name}</label>
+             <select id="vote_${i}">
+               <option value="1">★☆☆☆☆ (1)</option>
+               <option value="2">★★☆☆☆ (2)</option>
+               <option value="3">★★★☆☆ (3)</option>
+               <option value="4">★★★★☆ (4)</option>
+               <option value="5">★★★★★ (5)</option>
+             </select>`;
+          rezContainer.appendChild(d);
+        });
+        btn.disabled = false;
+      } catch(err) {
+        console.error(err);
+        rezContainer.innerHTML = '<p class="error">Fehler beim Laden der Rezepte.</p>';
       }
-    } catch(err) {
-      console.error('submit error',err);
-      alert('Netzwerk-Fehler.');
-    } finally {
-      btn.disabled = false;
     }
-  });
 
-  loadRecipes();
-});
-</script>
+    // Submit handler
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      const count = Number(countSelect.value);
+      const votes = rezepte.map((r,i) => ({
+        recipe_id: r.id,
+        vote:      Number(document.getElementById(`vote_${i}`).value)
+      }));
+      try {
+        const resp = await fetch(WORKER, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({
+            household_id,
+            voting_record_id: window.__VOTING_RECORD_ID,
+            count,
+            votes
+          })
+        });
+        const j = await resp.json();
+        if (j.success) {
+          alert('Danke fürs Voting!');
+        } else {
+          alert('Fehler: ' + (j.error||'unbekannt'));
+        }
+      } catch(e) {
+        console.error(e);
+        alert('Netzwerk-Fehler beim Speichern.');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    loadRecipes();
+  });
+  </script>
+</body>
+</html>
