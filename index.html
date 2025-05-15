@@ -43,9 +43,13 @@
           d.className = 'block';
           d.innerHTML = `
             <label for="vote_${i}">${i+1}. ${r.name}</label>
-            <select id="vote_${i}">
-              <option>Ja</option><option>Nein</option><option>Vielleicht</option>
-            </select>
+        <select id="vote_${i}">
+           <option value="1">★☆☆☆☆ (1)</option>
+           <option value="2">★★☆☆☆ (2)</option>
+           <option value="3">★★★☆☆ (3)</option>
+           <option value="4">★★★★☆ (4)</option>
+           <option value="5">★★★★★ (5)</option>
+         </select>
           `;
           cont.appendChild(d);
         });
