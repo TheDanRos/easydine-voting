@@ -43,12 +43,18 @@
       border-radius: 4px;
       cursor: pointer;
     }
+    .error {
+      color: #c00;
+      font-weight: bold;
+      text-align: center;
+      margin-top: 2rem;
+    }
   </style>
 </head>
 <body>
   <h1>Wöchentliche Rezept-Abstimmung</h1>
+
   <form id="voting-form" method="POST" action="https://easydine-voting.daniel-rossmann.workers.dev/">
-    <!-- wir lesen household_id und voting_id aus der URL -->
     <input type="hidden" name="household_id" id="household-id" />
     <input type="hidden" name="voting_id"    id="voting-id"    />
     <div id="rezepte">
@@ -59,26 +65,31 @@
 
   <script>
     const WORKER = 'https://easydine-voting.daniel-rossmann.workers.dev/';
-    const params = new URLSearchParams(window.location.search);
+    const urlParams = new URLSearchParams(window.location.search);
 
-    // 1️⃣ URL-Parameter auslesen
-    const household = params.get('household_id') || params.get('household');
-    const votingId  = params.get('voting_id');
-    if (!household) {
-      document.getElementById('rezepte').innerHTML = '<p class="error">Fehler: Keine Haushalts-ID in der URL.</p>';
-      throw new Error('Missing household_id');
+    // ✅ Parameter auslesen (unterstützt sowohl household_id als auch household)
+    const household = urlParams.get('household_id') || urlParams.get('household');
+    const votingId  = urlParams.get('voting_id');
+
+    // ❌ Fehlermeldung, falls einer der beiden fehlt
+    if (!household || !votingId) {
+      document.getElementById('rezepte').innerHTML =
+        '<p class="error">Fehler: household_id und/oder voting_id fehlt in der URL.</p>';
+      // Formular deaktivieren
+      document.querySelector('button[type=submit]').disabled = true;
+      throw new Error('Missing household_id or voting_id');
     }
+
+    // Versteckte Felder befüllen
     document.getElementById('household-id').value = household;
-    if (votingId) {
-      document.getElementById('voting-id').value = votingId;
-    }
+    document.getElementById('voting-id').value    = votingId;
 
-    // 2️⃣ Rezepte per GET vom Worker holen
+    // Rezepte laden und Formular aufbauen
     async function loadRecipes() {
       const container = document.getElementById('rezepte');
       try {
-        const res = await fetch(`${WORKER}?household_id=${encodeURIComponent(household)}`);
-        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const res = await fetch(`${WORKER}?household_id=${encodeURIComponent(household)}&voting_id=${encodeURIComponent(votingId)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const rezepte = await res.json();
 
         container.innerHTML = '';
@@ -110,22 +121,21 @@
     }
     loadRecipes();
 
-    // 3️⃣ Vote-Form abschicken
+    // Beim Abschicken alle Votes serialisieren und an den Worker schicken
     document.getElementById('voting-form').addEventListener('submit', async e => {
       e.preventDefault();
 
-      const votes = [];
-      document.querySelectorAll('select[id^="vote_"]').forEach(sel => {
-        const idx = sel.id.split('_')[1];
-        votes.push({
-          recipe_id: document.querySelector(`[name=recipe_id_${idx}]`).value,
-          vote: Number(sel.value)
+      // Votes sammeln
+      const votes = Array.from(document.querySelectorAll('select[id^="vote_"]'))
+        .map(sel => {
+          const idx = sel.id.split('_')[1];
+          return {
+            recipe_id: document.querySelector(`[name=recipe_id_${idx}]`).value,
+            vote: Number(sel.value)
+          };
         });
-      });
 
-      const payload = { household_id: household, votes, count: votes.length };
-      if (votingId) payload.voting_id = votingId;
-
+      const payload = { household_id: household, voting_id: votingId, votes, count: votes.length };
       try {
         const resp = await fetch(WORKER, {
           method: 'POST',
