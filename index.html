@@ -1,62 +1,23 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Easydine Rezept-Voting</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Wöchentliche Rezept-Abstimmung</title>
   <style>
-    body {
-      font-family: sans-serif;
-      max-width: 700px;
-      margin: auto;
-      padding: 2rem;
-      background: #f9f9f9;
-    }
-    h1 {
-      text-align: center;
-    }
-    .rezept-block {
-      margin-bottom: 1.5rem;
-      background: white;
-      padding: 1rem;
-      border-radius: 4px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    label {
-      font-weight: bold;
-      display: block;
-      margin-bottom: 0.5rem;
-    }
-    select {
-      width: 100%;
-      padding: 0.5rem;
-      margin-bottom: 0.5rem;
-    }
-    button {
-      margin-top: 2rem;
-      padding: 1rem;
-      width: 100%;
-      background: #007aff;
-      color: white;
-      font-size: 1rem;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    .error {
-      color: #c00;
-      font-weight: bold;
-      text-align: center;
-      margin-top: 2rem;
-    }
+    body { font-family: sans-serif; max-width: 700px; margin: auto; padding: 2rem; background: #f9f9f9 }
+    h1 { text-align: center }
+    .rezept-block { background:#fff; padding:1rem; margin-bottom:1rem; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.1) }
+    label { font-weight:600; display:block; margin-bottom:.5rem }
+    select { width:100%; padding:.5rem; margin-bottom:.5rem }
+    button { padding:1rem; width:100%; background:#007aff; color:#fff; font-size:1rem; border:none; border-radius:4px; cursor:pointer }
+    .error { color:#c00; font-weight:600; margin:1rem 0 }
   </style>
 </head>
 <body>
   <h1>Wöchentliche Rezept-Abstimmung</h1>
 
-  <form id="voting-form" method="POST" action="https://easydine-voting.daniel-rossmann.workers.dev/">
-    <input type="hidden" name="household_id" id="household-id" />
-    <input type="hidden" name="voting_id"    id="voting-id"    />
+  <form id="voting-form">
     <div id="rezepte">
       <p>Lade Rezepte… bitte warten.</p>
     </div>
@@ -64,95 +25,93 @@
   </form>
 
   <script>
-    const WORKER = 'https://easydine-voting.daniel-rossmann.workers.dev/';
-    const urlParams = new URLSearchParams(window.location.search);
+    // 1) Deine Worker-URL hier einfügen:
+    const WORKER_URL = 'https://easydine-voting.daniel-rossmann.workers.dev/'
 
-    // ✅ Parameter auslesen (unterstützt sowohl household_id als auch household)
-    const household = urlParams.get('household_id') || urlParams.get('household');
-    const votingId  = urlParams.get('voting_id');
+    // URL-Parameter auslesen
+    const params    = new URLSearchParams(window.location.search)
+    const household = params.get('household_id')
+    const voting    = params.get('voting_id')
 
-    // ❌ Fehlermeldung, falls einer der beiden fehlt
-    if (!household || !votingId) {
-      document.getElementById('rezepte').innerHTML =
-        '<p class="error">Fehler: household_id und/oder voting_id fehlt in der URL.</p>';
-      // Formular deaktivieren
-      document.querySelector('button[type=submit]').disabled = true;
-      throw new Error('Missing household_id or voting_id');
+    const container = document.getElementById('rezepte')
+
+    if (!household || !voting) {
+      container.innerHTML = '<p class="error">Fehler: Haushalt oder voting_id fehlt in der URL.</p>'
+      document.querySelector('button').disabled = true
+      throw new Error('Missing URL parameters')
     }
 
-    // Versteckte Felder befüllen
-    document.getElementById('household-id').value = household;
-    document.getElementById('voting-id').value    = votingId;
-
-    // Rezepte laden und Formular aufbauen
+    // 2) Rezepte laden
     async function loadRecipes() {
-      const container = document.getElementById('rezepte');
       try {
-        const res = await fetch(`${WORKER}?household_id=${encodeURIComponent(household)}&voting_id=${encodeURIComponent(votingId)}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const rezepte = await res.json();
-
-        container.innerHTML = '';
-        if (!Array.isArray(rezepte) || rezepte.length === 0) {
-          container.innerHTML = '<p>Keine Rezepte gefunden.</p>';
-          return;
+        const res = await fetch(`${WORKER_URL}?household_id=${encodeURIComponent(household)}&voting_id=${encodeURIComponent(voting)}`)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const recipes = await res.json()
+        if (!Array.isArray(recipes) || recipes.length === 0) {
+          container.innerHTML = '<p class="error">Keine Rezepte gefunden.</p>'
+          return
         }
 
-        rezepte.forEach((r, i) => {
-          const d = document.createElement('div');
-          d.className = 'rezept-block';
+        // Formular-Fields generieren
+        container.innerHTML = ''
+        recipes.forEach((r,i) => {
+          const d = document.createElement('div')
+          d.className = 'rezept-block'
           d.innerHTML = `
             <label for="vote_${i}">${i+1}. ${r.name}</label>
-            <select id="vote_${i}" name="vote_${i}">
+            <select id="vote_${i}">
               <option value="1">★☆☆☆☆</option>
               <option value="2">★★☆☆☆</option>
               <option value="3">★★★☆☆</option>
               <option value="4">★★★★☆</option>
               <option value="5">★★★★★</option>
             </select>
-            <input type="hidden" name="recipe_id_${i}" value="${r.id}" />
-          `;
-          container.appendChild(d);
-        });
-      } catch (err) {
-        console.error(err);
-        container.innerHTML = '<p class="error">Fehler beim Laden der Rezepte.</p>';
+            <input type="hidden" name="recipe_id_${i}" value="${r.id}">
+          `
+          container.appendChild(d)
+        })
+
+      } catch(err) {
+        console.error(err)
+        container.innerHTML = `<p class="error">Fehler beim Laden der Rezepte: ${err.message}</p>`
       }
     }
-    loadRecipes();
 
-    // Beim Abschicken alle Votes serialisieren und an den Worker schicken
-    document.getElementById('voting-form').addEventListener('submit', async e => {
-      e.preventDefault();
+    // 3) Vote-Form abschicken
+    document.getElementById('voting-form')
+      .addEventListener('submit', async e => {
+        e.preventDefault()
+        const votes = []
+        document.querySelectorAll('select[id^="vote_"]').forEach(sel => {
+          const idx = sel.id.split('_')[1]
+          votes.push({
+            recipe_id: document.querySelector(`input[name="recipe_id_${idx}"]`).value,
+            vote:      Number(sel.value)
+          })
+        })
 
-      // Votes sammeln
-      const votes = Array.from(document.querySelectorAll('select[id^="vote_"]'))
-        .map(sel => {
-          const idx = sel.id.split('_')[1];
-          return {
-            recipe_id: document.querySelector(`[name=recipe_id_${idx}]`).value,
-            vote: Number(sel.value)
-          };
-        });
+        const payload = { household_id: household, voting_id: voting, votes }
 
-      const payload = { household_id: household, voting_id: votingId, votes, count: votes.length };
-      try {
-        const resp = await fetch(WORKER, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const json = await resp.json();
-        if (json.success) {
-          alert('Danke fürs Voting!');
-        } else {
-          alert('Fehler beim Speichern: ' + (json.error || 'unbekannt'));
+        try {
+          const res  = await fetch(WORKER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json' },
+            body: JSON.stringify(payload)
+          })
+          const json = await res.json()
+          if (json.success) {
+            alert('Danke für Dein Voting!')
+          } else {
+            throw new Error(json.error||'Unbekannter Fehler')
+          }
+        } catch(err) {
+          console.error(err)
+          alert('Fehler beim Speichern: '+err.message)
         }
-      } catch (err) {
-        console.error(err);
-        alert('Netzwerkfehler beim Speichern.');
-      }
-    });
+      })
+
+    // Kick off
+    loadRecipes()
   </script>
 </body>
 </html>
